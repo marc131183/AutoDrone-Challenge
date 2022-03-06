@@ -1,9 +1,11 @@
 import os
 import numpy as np
 import optuna
+import pickle
 
 from PIL import Image
 from typing import List, Dict, Tuple
+from boxes import getBoxes
 
 
 def openLabelFile(path: str) -> List[Tuple[float, float, float, float, float]]:
@@ -33,6 +35,9 @@ def computeScoreForImage(
     img: np.ndarray = np.array(Image.open(img_path))
     shape: Tuple[int, int, int] = img.shape
 
+    labeled: np.ndarray = np.zeros((shape[0], shape[1]), dtype=bool)
+    estimated: np.ndarray = labeled.copy()
+
     for box in label:
         x_start, x_end, y_start, y_end = (
             int((box[1] - 0.5 * box[3]) * shape[1]),
@@ -40,18 +45,15 @@ def computeScoreForImage(
             int((box[2] - 0.5 * box[4]) * shape[0]),
             int((box[2] + 0.5 * box[4]) * shape[0]),
         )
-        print(x_start, x_end, y_start, y_end)
-        Image.fromarray(img[y_start:y_end, x_start:x_end]).show()
 
-    # img[
-    #     (
-    #         ((img[:, :, 0] < r_val_min) | (img[:, :, 0] > r_val_max))
-    #         | ((img[:, :, 1] < g_val_min) | (img[:, :, 1] > g_val_max))
-    #         | ((img[:, :, 2] < b_val_min) | (img[:, :, 2] > b_val_max))
-    #     )
-    # ] = 0
+        labeled[y_start:y_end, x_start:x_end] = True
 
-    # Image.fromarray(img).show()
+    boxes = getBoxes(img, r_min, r_max, g_min, g_max, b_min, b_max)
+    for min_row, min_col, max_row, max_col in boxes:
+        estimated[min_row:max_row, min_col:max_col] = True
+
+    # compute pixelwise difference between labeled and estimated and scale it between 0 and 1
+    return np.sum(labeled ^ estimated) / (shape[0] * shape[1])
 
 
 def objective(trial: optuna.trial.Trial, class_: float) -> float:
@@ -68,47 +70,86 @@ def objective(trial: optuna.trial.Trial, class_: float) -> float:
     path: str = "data/Labels/"
     scores: List[float] = []
     for file in os.listdir(path):
-        label: List[Tuple[float, float, float, float, float]] = openLabelFile(
-            path + file
-        )
-        label = [elem for elem in label if elem[0] == class_]
-        if len(label) > 0:
-            img_path: str = (
-                path + file[:-3] + "png"
-                if os.path.exists(path + file[:-3] + "png")
-                else path + file[:-3] + "jpg"
+        if file != "classes.txt":
+            label: List[Tuple[float, float, float, float, float]] = openLabelFile(
+                path + file
             )
-            scores.extend(
-                computeScoreForImage(
-                    img_path,
-                    label,
-                    r_min,
-                    r_max,
-                    g_min,
-                    g_max,
-                    b_min,
-                    b_max,
+            label = [elem for elem in label if elem[0] == class_]
+            if len(label) > 0:
+                img_path: str = (
+                    "data/Images/" + file[:-3] + "png"
+                    if os.path.exists(path + file[:-3] + "png")
+                    else "data/Images/" + file[:-3] + "jpg"
                 )
-            )
+                scores.append(
+                    computeScoreForImage(
+                        img_path,
+                        label,
+                        r_min,
+                        r_max,
+                        g_min,
+                        g_max,
+                        b_min,
+                        b_max,
+                    )
+                )
 
     return np.average(scores)
 
 
-if __name__ == "__main__":
-    r_val_min = 0
-    r_val_max = 40
-    g_val_min = 115
-    g_val_max = 165
-    b_val_min = 20
-    b_val_max = 130
+def saveStudy(study: optuna.study.Study, path: str) -> None:
+    with open(path, "wb") as output:
+        pickle.dump(study, output, pickle.HIGHEST_PROTOCOL)
 
-    computeScoreForImage(
-        "data/Images/0.jpg",
-        openLabelFile("data/Labels/0.txt"),
-        r_val_min,
-        r_val_max,
-        g_val_min,
-        g_val_max,
-        b_val_min,
-        b_val_max,
-    )
+
+def loadStudy(path: str) -> optuna.study.Study:
+    with open(path, "rb") as input:
+        return pickle.load(input)
+
+
+if __name__ == "__main__":
+    # TODO:
+    # - include max_island_size parameter in study? change it to % of image?
+
+    """Study"""
+    # color_to_optimize: str = "green"
+    # mapping: Dict[str, int] = {"red": 0, "green": 1, "yellow": 2}
+    # study_path = "data/Studies/study_{}.pkl".format(color_to_optimize)
+
+    # if not os.path.exists(study_path):
+    #     study: optuna.study.Study = optuna.create_study()
+    # else:
+    #     study: optuna.study.Study = loadStudy(study_path)
+
+    # study.optimize(lambda x: objective(x, mapping[color_to_optimize]), n_trials=1000)
+    # saveStudy(study, study_path)
+
+    # print(study.best_params)
+
+    """ Test """
+    r_min = 0
+    r_max = 90
+    g_min = 106
+    g_max = 208
+    b_min = 41
+    b_max = 151
+
+    img: np.ndarray = np.array(Image.open("data/Images/0.jpg"))
+
+    boxes = getBoxes(img, r_min, r_max, g_min, g_max, b_min, b_max, min_island_size=50)
+    for min_row, min_col, max_row, max_col in boxes:
+        img[min_row:max_row, min_col - 1 : min_col + 2] = 0
+        img[min_row:max_row, max_col - 1 : max_col + 2] = 0
+        img[min_row - 1 : min_row + 2, min_col:max_col] = 0
+        img[max_row - 1 : max_row + 2, min_col:max_col] = 0
+
+    Image.fromarray(img).show()
+
+    # img[
+    #     (
+    #         ((img[:, :, 0] < r_min) | (img[:, :, 0] > r_max))
+    #         | ((img[:, :, 1] < g_min) | (img[:, :, 1] > g_max))
+    #         | ((img[:, :, 2] < b_min) | (img[:, :, 2] > b_max))
+    #     )
+    # ] = 0
+    # Image.fromarray(img).show()
