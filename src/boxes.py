@@ -83,7 +83,7 @@ def getBoxes(
     g_max: int,
     b_min: int,
     b_max: int,
-    min_island_size: int = 50,
+    min_island_size: int = 100,
 ) -> List[Tuple[int, int, int, int]]:
     map_plan: np.ndarray = np.ones((img.shape[0], img.shape[1]), dtype=bool)
     map_plan[
