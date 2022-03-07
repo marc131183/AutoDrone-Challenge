@@ -112,7 +112,10 @@ if __name__ == "__main__":
     # - include max_island_size parameter in study? change it to % of image?
     # - for the objective function should we aim for only capturing the buoys
     #   and ignore any other extra boxes? (to make sure we capture all buoys)
-    color_to_optimize: str = "yellow"
+    #   need some punishment for wrong boxes though (otherwise whole image will be marked)
+    #   maybe weight function that rewards good boxes a lot and bad not so much?
+
+    color_to_optimize: str = "green"
     mapping: Dict[str, int] = {"red": 0, "green": 1, "yellow": 2}
     study_path = "data/Studies/study_{}.pkl".format(color_to_optimize)
 
@@ -141,7 +144,7 @@ if __name__ == "__main__":
         b_min = study.best_params["b_min"]
         b_max = study.best_params["b_max"]
 
-        img: np.ndarray = np.array(Image.open("data/Images/3.jpg"))
+        img: np.ndarray = np.array(Image.open("data/Images/0.jpg"))
 
         boxes = getBoxes(
             img, r_min, r_max, g_min, g_max, b_min, b_max, min_island_size=50

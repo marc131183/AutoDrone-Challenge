@@ -47,7 +47,7 @@ def getNeighbours(
 
 def getIslands(map_plan: np.ndarray, min_island_size: int) -> List[Island]:
     """
-    counts the number of islands in a bool numpy array
+    returns the number of islands in a bool numpy array
     example with 3 islands (with sizes 6, 1, 3):
     True    False   True    False
     True    True    False   True
