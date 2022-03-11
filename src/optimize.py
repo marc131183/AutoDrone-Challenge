@@ -2,6 +2,7 @@ import os
 import numpy as np
 import optuna
 import pickle
+import matplotlib.pyplot as plt
 
 from PIL import Image
 from typing import List, Dict, Tuple
@@ -53,12 +54,12 @@ def computeScoreForImage(
         estimated[min_row:max_row, min_col:max_col] = True
 
     # punish unrecognized boxes a lot, while false estimated boxes not so much
-    # return (
-    #     np.sum(labeled & np.logical_not(estimated))
-    #     + np.sum(np.logical_not(labeled) & estimated) * 1 / 3
-    # ) / (shape[0] * shape[1])
+    return (
+        np.sum(labeled & np.logical_not(estimated))
+        + np.sum(np.logical_not(labeled) & estimated) * 1 / 3
+    ) / (shape[0] * shape[1])
     # compute pixelwise difference between labeled and estimated and scale it between 0 and 1
-    return np.sum(labeled ^ estimated) / (shape[0] * shape[1])
+    # return np.sum(labeled ^ estimated) / np.sum(labeled)
 
 
 def objective(trial: optuna.trial.Trial, class_: float) -> float:
@@ -115,14 +116,16 @@ if __name__ == "__main__":
     #   need some punishment for wrong boxes though (otherwise whole image will be marked)
     #   maybe weight function that rewards good boxes a lot and punished bad ones not so much?
 
-    color_to_optimize: str = "red"
+    # TODO:
+    # - seperate data into training and test data
+
+    color_to_optimize: str = "yellow"
     mapping: Dict[str, int] = {"red": 0, "green": 1, "yellow": 2}
     study_path: str = "data/Studies/study_{}.pkl".format(color_to_optimize)
 
-    # 0: study, 1: test
-    mode: int = 1
+    train: bool = False
 
-    if mode == 0:
+    if train:
         """Study"""
         if not os.path.exists(study_path):
             study: optuna.study.Study = optuna.create_study()
@@ -144,15 +147,35 @@ if __name__ == "__main__":
         b_min: float = study.best_params["b_min"]
         b_max: float = study.best_params["b_max"]
 
-        img: np.ndarray = np.array(Image.open("data/Images/2.jpg"))
+        path: str = "data/Labels/"
+        for file in os.listdir(path):
+            if file != "classes.txt":
+                label: List[Tuple[float, float, float, float, float]] = openLabelFile(
+                    path + file
+                )
+                label = [
+                    elem for elem in label if elem[0] == mapping[color_to_optimize]
+                ]
+                if len(label) > 0:
+                    img: np.ndarray = np.array(
+                        Image.open("data/Images/" + file[:-3] + "jpg")
+                    )
+                    boxes = getBoxes(
+                        img,
+                        r_min,
+                        r_max,
+                        g_min,
+                        g_max,
+                        b_min,
+                        b_max,
+                        min_island_size=50,
+                    )
+                    for min_row, min_col, max_row, max_col in boxes:
+                        img[min_row:max_row, min_col - 1 : min_col + 2] = 0
+                        img[min_row:max_row, max_col - 1 : max_col + 2] = 0
+                        img[min_row - 1 : min_row + 2, min_col:max_col] = 0
+                        img[max_row - 1 : max_row + 2, min_col:max_col] = 0
 
-        boxes = getBoxes(
-            img, r_min, r_max, g_min, g_max, b_min, b_max, min_island_size=50
-        )
-        for min_row, min_col, max_row, max_col in boxes:
-            img[min_row:max_row, min_col - 1 : min_col + 2] = 0
-            img[min_row:max_row, max_col - 1 : max_col + 2] = 0
-            img[min_row - 1 : min_row + 2, min_col:max_col] = 0
-            img[max_row - 1 : max_row + 2, min_col:max_col] = 0
-
-        Image.fromarray(img).show()
+                    plt.imshow(img)
+                    plt.draw()
+                    plt.pause(1)
