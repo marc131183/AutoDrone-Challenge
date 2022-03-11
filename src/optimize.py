@@ -115,6 +115,7 @@ if __name__ == "__main__":
     #   and ignore any other extra boxes? (to make sure we capture all buoys)
     #   need some punishment for wrong boxes though (otherwise whole image will be marked)
     #   maybe weight function that rewards good boxes a lot and punished bad ones not so much?
+    # - try computervision model?
 
     # TODO:
     # - seperate data into training and test data
