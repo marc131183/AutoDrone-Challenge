@@ -52,6 +52,11 @@ def computeScoreForImage(
     for min_row, min_col, max_row, max_col in boxes:
         estimated[min_row:max_row, min_col:max_col] = True
 
+    # punish unrecognized boxes a lot, while false estimated boxes not so much
+    # return (
+    #     np.sum(labeled & np.logical_not(estimated))
+    #     + np.sum(np.logical_not(labeled) & estimated) * 1 / 3
+    # ) / (shape[0] * shape[1])
     # compute pixelwise difference between labeled and estimated and scale it between 0 and 1
     return np.sum(labeled ^ estimated) / (shape[0] * shape[1])
 
@@ -76,14 +81,9 @@ def objective(trial: optuna.trial.Trial, class_: float) -> float:
             )
             label = [elem for elem in label if elem[0] == class_]
             if len(label) > 0:
-                img_path: str = (
-                    "data/Images/" + file[:-3] + "png"
-                    if os.path.exists("data/Images/" + file[:-3] + "png")
-                    else "data/Images/" + file[:-3] + "jpg"
-                )
                 scores.append(
                     computeScoreForImage(
-                        img_path,
+                        "data/Images/" + file[:-3] + "jpg",
                         label,
                         r_min,
                         r_max,
@@ -113,14 +113,14 @@ if __name__ == "__main__":
     # - for the objective function should we aim for only capturing the buoys
     #   and ignore any other extra boxes? (to make sure we capture all buoys)
     #   need some punishment for wrong boxes though (otherwise whole image will be marked)
-    #   maybe weight function that rewards good boxes a lot and bad not so much?
+    #   maybe weight function that rewards good boxes a lot and punished bad ones not so much?
 
-    color_to_optimize: str = "green"
+    color_to_optimize: str = "red"
     mapping: Dict[str, int] = {"red": 0, "green": 1, "yellow": 2}
-    study_path = "data/Studies/study_{}.pkl".format(color_to_optimize)
+    study_path: str = "data/Studies/study_{}.pkl".format(color_to_optimize)
 
     # 0: study, 1: test
-    mode = 1
+    mode: int = 1
 
     if mode == 0:
         """Study"""
@@ -137,14 +137,14 @@ if __name__ == "__main__":
         """Test"""
         study: optuna.study.Study = loadStudy(study_path)
 
-        r_min = study.best_params["r_min"]
-        r_max = study.best_params["r_max"]
-        g_min = study.best_params["g_min"]
-        g_max = study.best_params["g_max"]
-        b_min = study.best_params["b_min"]
-        b_max = study.best_params["b_max"]
+        r_min: float = study.best_params["r_min"]
+        r_max: float = study.best_params["r_max"]
+        g_min: float = study.best_params["g_min"]
+        g_max: float = study.best_params["g_max"]
+        b_min: float = study.best_params["b_min"]
+        b_max: float = study.best_params["b_max"]
 
-        img: np.ndarray = np.array(Image.open("data/Images/0.jpg"))
+        img: np.ndarray = np.array(Image.open("data/Images/2.jpg"))
 
         boxes = getBoxes(
             img, r_min, r_max, g_min, g_max, b_min, b_max, min_island_size=50
