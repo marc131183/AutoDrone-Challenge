@@ -2,3 +2,6 @@
 !*.py
 !*.md
 *.pyc
+
+# Directories
+AutoDroneChallenge.egg-info
