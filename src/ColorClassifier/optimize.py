@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple
 
 from src.ColorClassifier.boxes import getBoxes
-from src.functions import ImageLabelIterator
+from src.functions import DataManager
 
 
 def computeScoreForImage(
@@ -40,15 +40,15 @@ def computeScoreForImage(
         estimated[min_row:max_row, min_col:max_col] = True
 
     # punish unrecognized boxes a lot, while false estimated boxes not so much
-    return (
-        np.sum(labeled & np.logical_not(estimated))
-        + np.sum(np.logical_not(labeled) & estimated) * 1 / 3
-    ) / (shape[0] * shape[1])
+    # return (
+    #     np.sum(labeled & np.logical_not(estimated))
+    #     + np.sum(np.logical_not(labeled) & estimated) * 1 / 3
+    # ) / (shape[0] * shape[1])
     # compute pixelwise difference between labeled and estimated and scale it between 0 and 1
-    # return np.sum(labeled ^ estimated) / np.sum(labeled)
+    return np.sum(labeled ^ estimated) / np.sum(labeled)
 
 
-def objective(trial: optuna.trial.Trial, class_: float) -> float:
+def objective(trial: optuna.trial.Trial, class_: float, train_split: float) -> float:
     """
     class_ should be the index of the desired class in the classes.txt file (as float)
     """
@@ -60,7 +60,7 @@ def objective(trial: optuna.trial.Trial, class_: float) -> float:
     b_max: int = trial.suggest_int("b_max", b_min, 255)
 
     scores: List[float] = []
-    for label, img in ImageLabelIterator:
+    for label, img in DataManager(train_split).create_class_iterator(class_, True):
         label = [elem for elem in label if elem[0] == class_]
         if label:
             scores.append(
@@ -98,10 +98,8 @@ if __name__ == "__main__":
     #   maybe weight function that rewards good boxes a lot and punished bad ones not so much?
     # - try computervision model?
 
-    # TODO:
-    # - seperate data into training and test data
-
-    color_to_optimize: str = "red"
+    color_to_optimize: str = "yellow"
+    train_split: float = 0.8
     mapping: Dict[str, int] = {"red": 0, "green": 1, "yellow": 2}
     study_path: str = "data/Studies/study_{}.pkl".format(color_to_optimize)
 
@@ -114,7 +112,10 @@ if __name__ == "__main__":
         else:
             study: optuna.study.Study = loadStudy(study_path)
 
-        study.optimize(lambda x: objective(x, mapping[color_to_optimize]), n_trials=500)
+        study.optimize(
+            lambda x: objective(x, mapping[color_to_optimize], train_split),
+            n_trials=500,
+        )
         saveStudy(study, study_path)
 
         print(study.best_params)
@@ -129,7 +130,9 @@ if __name__ == "__main__":
         b_min: float = study.best_params["b_min"]
         b_max: float = study.best_params["b_max"]
 
-        for label, img in ImageLabelIterator():
+        for label, img in DataManager(train_split).create_class_iterator(
+            mapping[color_to_optimize], train
+        ):
             label = [elem for elem in label if elem[0] == mapping[color_to_optimize]]
             if label:
                 boxes = getBoxes(
