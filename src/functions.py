@@ -28,7 +28,9 @@ class IdIterator:
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(
+        self,
+    ) -> Tuple[List[Tuple[float, float, float, float, float]], np.ndarray]:
         if self.id_list:
             id: str = self.id_list.pop()
             label: List[Tuple[float, float, float, float, float]] = openLabelFile(
