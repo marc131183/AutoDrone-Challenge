@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple
 
 from src.ColorClassifier.boxes import getBoxes
-from src.functions import DataManager
+from src.functions import DataManager, loadImages
 
 
 def computeScoreForImage(
@@ -98,14 +98,13 @@ if __name__ == "__main__":
     #   maybe weight function that rewards good boxes a lot and punished bad ones not so much?
     # - try computervision model?
 
-    color_to_optimize: str = "yellow"
+    color_to_optimize: str = "red"
     train_split: float = 0.8
     mapping: Dict[str, int] = {"red": 0, "green": 1, "yellow": 2}
     study_path: str = "data/Studies/study_{}.pkl".format(color_to_optimize)
 
-    train: bool = False
-
-    if train:
+    mode: int = 1
+    if mode == 0:
         """Study"""
         if not os.path.exists(study_path):
             study: optuna.study.Study = optuna.create_study()
@@ -120,7 +119,6 @@ if __name__ == "__main__":
 
         print(study.best_params)
     else:
-        """Test"""
         study: optuna.study.Study = loadStudy(study_path)
 
         r_min: float = study.best_params["r_min"]
@@ -130,11 +128,40 @@ if __name__ == "__main__":
         b_min: float = study.best_params["b_min"]
         b_max: float = study.best_params["b_max"]
 
-        for label, img in DataManager(train_split).create_class_iterator(
-            mapping[color_to_optimize], train
-        ):
-            label = [elem for elem in label if elem[0] == mapping[color_to_optimize]]
-            if label:
+        if mode == 1:
+            """Test on test data"""
+            for label, img in DataManager(train_split).create_class_iterator(
+                mapping[color_to_optimize], False
+            ):
+                label = [
+                    elem for elem in label if elem[0] == mapping[color_to_optimize]
+                ]
+                if label:
+                    boxes = getBoxes(
+                        img,
+                        r_min,
+                        r_max,
+                        g_min,
+                        g_max,
+                        b_min,
+                        b_max,
+                        min_island_size=50,
+                    )
+                    for min_row, min_col, max_row, max_col in boxes:
+                        img[min_row:max_row, min_col - 1 : min_col + 2] = 0
+                        img[min_row:max_row, max_col - 1 : max_col + 2] = 0
+                        img[min_row - 1 : min_row + 2, min_col:max_col] = 0
+                        img[max_row - 1 : max_row + 2, min_col:max_col] = 0
+
+                    plt.imshow(img)
+                    plt.draw()
+                    plt.pause(1)
+        else:
+            """Test on counterexamples"""
+            imgs: List[np.ndarray] = loadImages(
+                "data/Counterexamples/{}/".format(color_to_optimize)
+            )
+            for img in imgs:
                 boxes = getBoxes(
                     img,
                     r_min,
