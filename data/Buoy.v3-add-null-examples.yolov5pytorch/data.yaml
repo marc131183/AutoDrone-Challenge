@@ -1,0 +1,5 @@
+train: /home/marc/Code/yolov5/data/Buoy.v3-add-null-examples.yolov5pytorch/train/images
+val: /home/marc/Code/yolov5/data/Buoy.v3-add-null-examples.yolov5pytorch/valid/images
+
+nc: 3
+names: ['green', 'red', 'yellow']
